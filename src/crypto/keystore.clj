@@ -53,6 +53,8 @@
 
 (defn keystore
   "Create a blank KeyStore."
-  []
-  (doto (KeyStore/getInstance (KeyStore/getDefaultType))
-    (.load nil)))
+  ([]
+     (keystore (KeyStore/getDefaultType)))
+  ([type]
+     (doto (KeyStore/getInstance type)
+       (.load nil))))
