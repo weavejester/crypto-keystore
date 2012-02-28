@@ -20,16 +20,22 @@
     (.toCharArray (password-fn))))
 
 (defprotocol PemSource
-  (pem-reader [source pass-fn]
-    "Create a PEMReader from a PEM source and optional password function."))
+  (make-pem-reader [source pass-fn]))
 
 (extend-protocol PemSource
   String
-  (pem-reader [s pass-fn] (pem-reader (StringReader. s) pass-fn))
+  (make-pem-reader [s pass-fn] (make-pem-reader (StringReader. s) pass-fn))
   java.io.Reader
-  (pem-reader [r pass-fn] (PEMReader. r (PasswordFn. pass-fn)))
+  (make-pem-reader [r pass-fn] (PEMReader. r (PasswordFn. pass-fn)))
   Object
-  (pem-reader [x pass-fn] (pem-reader (io/reader x) pass-fn)))
+  (make-pem-reader [x pass-fn] (make-pem-reader (io/reader x) pass-fn)))
+
+(defn pem-reader
+  "Create a PEMReader from a PEM source and optional password function."
+  ([source]
+     (make-pem-reader source (constantly nil)))
+  ([source password-fn]
+     (make-pem-reader source password-fn)))
 
 (defn pem-seq
   "Return a lazy seq of objects from a PEMReader."
@@ -38,7 +44,15 @@
    (complement nil?)
    (repeatedly #(.readObject reader))))
 
+(defn import-cert
+  "Import a PEM certificate file into the keystore."
+  [keystore alias cert]
+  (with-open [r (pem-reader cert)]
+    (doseq [c (pem-seq r) :when (instance? Certificate c)]
+      (.setCertificateEntry keystore alias c))))
+
 (defn keystore
   "Create a blank KeyStore."
   []
-  (KeyStore/getInstance (KeyStore/getDefaultType)))
+  (doto (KeyStore/getInstance (KeyStore/getDefaultType))
+    (.load nil)))
