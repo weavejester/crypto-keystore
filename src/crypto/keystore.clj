@@ -2,6 +2,7 @@
   "Functions for creating and managing Java Keystores."
   (:require [clojure.java.io :as io])
   (:import java.io.StringReader
+           java.io.StringWriter
            java.security.KeyStore
            java.security.KeyStore$PrivateKeyEntry
            java.security.KeyPair
@@ -9,6 +10,7 @@
            java.security.Security
            java.security.cert.Certificate
            org.bouncycastle.openssl.PEMReader
+           org.bouncycastle.openssl.PEMWriter
            org.bouncycastle.openssl.PasswordFinder
            org.bouncycastle.jce.provider.BouncyCastleProvider))
 
@@ -50,6 +52,25 @@
   (with-open [r (pem-reader cert)]
     (doseq [c (pem-seq r) :when (instance? Certificate c)]
       (.setCertificateEntry keystore alias c))))
+
+(defn pem-writer
+  "Create a PEMWriter for an output stream, reader or file."
+  [output]
+  (PEMWriter. (io/writer output)))
+
+(defn- write-str [f]
+  (let [sw (StringWriter.)]
+    (f sw)
+    (.toString sw)))
+
+(defn export-cert
+  "Export a certificate in a keystore encoded in PEM format. If an output is supplied,
+  write to it directly, otherwise return a string."
+  ([keystore alias]
+     (write-str (partial export-cert keystore alias)))
+  ([keystore alias output]
+     (with-open [w (pem-writer output)]
+       (.writeObject w (.getCertificate keystore alias)))))
 
 (defn keystore
   "Create a blank KeyStore."
