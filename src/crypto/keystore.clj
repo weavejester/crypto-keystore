@@ -5,6 +5,8 @@
            java.io.StringWriter
            java.security.KeyStore
            java.security.KeyStore$PrivateKeyEntry
+           java.security.KeyStore$SecretKeyEntry
+           java.security.KeyStore$TrustedCertificateEntry
            java.security.KeyPair
            java.security.PrivateKey
            java.security.Security
@@ -63,19 +65,48 @@
     (f sw)
     (.toString sw)))
 
+(defn load-entry [ks alias]
+  "Loads the entry that belongs to specified alias in given keystore."
+  {:alias alias
+   :creation-date (.getCreationDate ks alias)
+   :certificate-chain (seq (.getCertificateChain ks alias))
+   :certificate (.getCertificate ks alias)})
+
+(defn aliases [ks]
+  "Return seq of keystore aliases."
+  (enumeration-seq (.aliases ks)))
+
+(defn load-entries [ks]
+  "Loads all entries from given keystore"
+  (let [store {:type (.getType ks), :provider (.getName (.getProvider ks))}
+        entries (reduce conj '[] (map #(load-entry ks %) (aliases ks)))]
+    (assoc store :entries entries)))
+
+
+(defn certificate [ks the-alias]
+  "Returns the certificate belongs to specified alias in keystore"
+  (let [entries (:entries (load-entries ks))
+        entry (first (filter #(= (:alias %) the-alias) entries))
+        {:keys [alias certificate]} entry]
+    certificate))
+
 (defn export-cert
   "Export a certificate in a keystore encoded in PEM format. If an output is supplied,
   write to it directly, otherwise return a string."
   ([keystore alias]
      (write-str (partial export-cert keystore alias)))
   ([keystore alias output]
-     (with-open [w (pem-writer output)]
-       (.writeObject w (.getCertificate keystore alias)))))
+     (let [cert (certificate keystore alias)]
+       (with-open [w (pem-writer output)]
+         (.writeObject w (certificate keystore alias)))
+       cert)))
 
 (defn keystore
-  "Create a blank KeyStore."
-  ([]
-     (keystore (KeyStore/getDefaultType)))
-  ([type]
-     (doto (KeyStore/getInstance type)
-       (.load nil))))
+  "Loads a KeyStore with given parameters."
+  ([] (keystore (KeyStore/getDefaultType) nil nil))
+  ([type] (keystore type nil nil))
+  ([type file password]
+     (let [ks (KeyStore/getInstance (if (nil? type) (KeyStore/getDefaultType) type))]
+       (if (nil? file)
+         (doto ks (.load nil))
+         (doto ks (.load (io/input-stream file) (.toCharArray password)))))))
