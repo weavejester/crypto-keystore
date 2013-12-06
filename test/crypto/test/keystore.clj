@@ -2,9 +2,6 @@
   (:use clojure.test
         crypto.keystore))
 
-(deftest test-keystore
-  (is (instance? java.security.KeyStore (keystore))))
-
 (def cert
   "-----BEGIN CERTIFICATE-----
 MIICazCCAdQCCQDHAFAm5u+byTANBgkqhkiG9w0BAQUFADB6MQswCQYDVQQGEwJB
@@ -23,7 +20,19 @@ LGYjZrCIk1W/s+57P3wjTOB2My8K/DCWIX4DIt1DbbA1k0PqpMlpKu+ueP9bvoA=
 -----END CERTIFICATE-----
 ")
 
-(deftest test-certs
+(deftest test-keystore
+  (is (instance? java.security.KeyStore (keystore))))
+
+(defmacro with-keystore [type file password & body]
+  `(let [~'ks (keystore ~type ~file ~password)]
+     ~@body))
+
+(deftest test-entry-count-empty_ks
+  (let [ks (keystore)
+        entries (load-entries ks)]
+    (is (= 0 (count (:entries entries))))))
+
+(deftest test-certificates-empty_ks
   (let [ks (keystore)]
     (import-cert ks "test-cert" cert)
     (is (= cert (export-cert ks "test-cert")))))
